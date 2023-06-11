@@ -1,58 +1,56 @@
-import subprocess
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from pydantic import BaseModel, Field, create_model
+import os
 import shlex
-from typing import Dict, Any, Tuple
-from pydantic import BaseModel, Field
-
-class CommandArgs(BaseModel):
-    cmd: str = Field(..., description="The command to run in shell.")
-    name: Optional[str] = Field(None, description="The name for the command if it needs to be saved as a python file.")
-
-class CommandTool:
-    def __init__(self, name: str, description: str, args_schema: BaseModel):
-        self.name = name
-        self.description = description
-        self.args_schema = args_schema
-
-    def run_command(self, cmd: str) -> Tuple[str, str]:
-        cmd_parts = shlex.split(cmd)
-        result = subprocess.run(cmd_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = result.stdout.decode()
-        error = result.stderr.decode()
-        return output, error
-
-    def save_command_as_file(self, cmd: str, name: str) -> None:
-        content = f\"\"\"
 import subprocess
-import shlex
 
-def run_command(cmd):
+class FunctionalToolArgsSchema(BaseModel):
+    cmd: str = Field(...)
+    env: Optional[Dict[str, str]] = Field(default_factory=dict)
+    save_to_file: Optional[bool] = Field(default=False)
+    filename: Optional[str] = Field(default=None)
+
+class BaseTool(ABC, BaseModel):
+    name: str = Field(default=None)
+    description: str = Field(default=None)
+    args_schema: Type[BaseModel] = Field(default=None)
+
+    @abstractmethod
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        pass
+
+class FunctionalTool(BaseTool):
+    func: Callable[..., Any]
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        return self.func(*args, **kwargs)
+
+def run_command(cmd: str, env: Optional[Dict[str, str]] = None, save_to_file: Optional[bool] = False, filename: Optional[str] = None) -> Tuple[str, str]:
+    env_vars = os.environ.copy()
+    if env is not None:
+        env_vars.update(env)
     cmd_parts = shlex.split(cmd)
-    result = subprocess.run(cmd_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(cmd_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env_vars)
     output = result.stdout.decode()
     error = result.stderr.decode()
-
+    if save_to_file:
+        filename = filename or "command.py"
+        with open(filename, 'w') as f:
+            f.write(f"import os\n\nos.system('{cmd}')\n")
     return output, error
 
+run_command_tool = FunctionalTool(
+    name="run_command",
+    description="A tool to run shell commands",
+    args_schema=FunctionalToolArgsSchema,
+    func=run_command
+)
+
 if __name__ == "__main__":
-    output, error = run_command(\"{cmd}\")
-
+    command = input("Enter the command you want to run: ")
+    output, error = run_command_tool.execute({"cmd": command})
     if output:
-        print("Output:\\n", output)
+        print("Output:\n", output)
     if error:
-        print("Error:\\n", error)
-\"\"\"
-        with open(f"{name}.py", "w") as file:
-            file.write(content)
-
-    def execute(self, args: Dict[str, Any]) -> Tuple[str, str]:
-        cmd = args.get("cmd")
-        name = args.get("name")
-        if name is not None:
-            self.save_command_as_file(cmd, name)
-        return self.run_command(cmd)
-
-def create_command_tool():
-    name = "CommandTool"
-    description = "A tool to run shell commands and optionally save them as python files."
-    args_schema = CommandArgs()
-    return CommandTool(name, description, args_schema)
+        print("Error:\n", error)
