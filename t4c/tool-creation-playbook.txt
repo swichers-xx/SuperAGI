@@ -1,0 +1,38 @@
+1. Define Functionality
+
+Every tool you develop needs a function that defines its behavior. As the master agent, define the tasks for your less capable agents. They could be as simple as parsing data, looking up information, or performing a calculation. Here is a simple example:
+
+python
+Copy code
+def tool_function(input1, input2):
+    # Insert functionality here
+    return output
+    
+2. Design Schema
+
+Each tool requires a Pydantic model that serves as the schema for the arguments it accepts. Assign this task to another agent, instructing them to create schemas that match the types of inputs that each function requires.
+
+python
+Copy code
+class ToolArgsSchema(BaseModel):
+    input1: int
+    input2: str
+
+3. Create Tools
+
+Now that you have the functionality and the schema, you can assign an agent to combine them into a tool. This is done using the FunctionalTool.from_function class method.
+
+python
+Copy code
+tool = FunctionalTool.from_function(tool_function, args_schema=ToolArgsSchema)
+
+4. Test Tools
+
+Once a tool is created, it should be tested to ensure it's working as expected. Assign another agent to execute each tool with a variety of inputs and confirm that the outputs are correct.
+
+python
+Copy code
+output = tool.execute({"input1": 123, "input2": "abc"})
+Document Tools
+
+5. Finally, each tool should be documented so that users know what it does and how to use it. Assign an agent to write clear, concise descriptions for each tool, including information on what it does, what inputs it requires, and what output it produces.
